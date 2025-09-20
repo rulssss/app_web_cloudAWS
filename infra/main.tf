@@ -86,3 +86,26 @@ resource "aws_s3_bucket" "bucket" {
   bucket = "rulssss-pryect-tf"
   acl    = "private"
 }
+
+# Outputs
+
+output "db_host" {
+  value = aws_db_instance.db.address
+}
+
+output "db_name" {
+  value = aws_db_instance.db.db_name
+}
+
+output "db_user" {
+  value = aws_db_instance.db.username
+}
+
+output "db_pass" {
+  value = aws_db_instance.db.password
+  sensitive = true
+}
+
+output "s3_bucket" {
+  value = aws_s3_bucket.bucket.bucket
+}
