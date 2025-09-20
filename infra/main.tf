@@ -3,15 +3,49 @@ provider "aws" {
 }
 
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
   tags = { Name = "main-vpc" }
 }
 
+# Internet Gateway para conectividad
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = { Name = "main-igw" }
+}
+
 resource "aws_subnet" "main" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-east-2a"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-2a"
+  map_public_ip_on_launch = true
   tags = { Name = "main-subnet" }
+}
+
+# Segunda subnet OBLIGATORIA para RDS
+resource "aws_subnet" "secondary" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-2b"
+  tags = { Name = "secondary-subnet" }
+}
+
+# Route Table
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = { Name = "main-route-table" }
+}
+
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
 }
 
 resource "aws_security_group" "ec2_sg" {
@@ -57,15 +91,20 @@ resource "aws_security_group" "rds_sg" {
 }
 
 resource "aws_instance" "web" {
-  ami                         = "ami-08c99e0b9f0c0e58c"
-  instance_type               = "t2.micro"
-  subnet_id                   = aws_subnet.main.id
-  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  ami                    = "ami-0cfde0ea8edd312d4"
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  
+  tags = {
+    Name = "web-server"
+  }
 }
 
+# Usar AMBAS subnets para RDS (mínimo 2 zonas requerido por AWS)
 resource "aws_db_subnet_group" "db_subnets" {
   name       = "main-db-subnet-group"
-  subnet_ids = [aws_subnet.main.id]
+  subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
   tags       = { Name = "main-db-subnet-group" }
 }
 
@@ -82,13 +121,24 @@ resource "aws_db_instance" "db" {
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
 }
 
+# Generar sufijo aleatorio para bucket único
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
 resource "aws_s3_bucket" "bucket" {
-  bucket = "rulssss-pryect-tf"
+  bucket = "rulssss-pryect-tf-${random_string.bucket_suffix.result}"
+}
+
+# ACL separado (nueva forma recomendada)
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = aws_s3_bucket.bucket.id
   acl    = "private"
 }
 
 # Outputs 
-
 output "db_host" {
   value = aws_db_instance.db.address
 }
@@ -108,4 +158,8 @@ output "db_pass" {
 
 output "s3_bucket" {
   value = aws_s3_bucket.bucket.bucket
+}
+
+output "ec2_public_ip" {
+  value = aws_instance.web.public_ip
 }
