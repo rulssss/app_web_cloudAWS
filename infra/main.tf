@@ -235,12 +235,6 @@ resource "aws_db_instance" "db" {
   }
 }
 
-# Generar sufijo aleatorio para bucket único
-resource "random_string" "bucket_suffix" {
-  length  = 8
-  special = false
-  upper   = false
-}
 
 resource "aws_s3_bucket" "bucket" {
   bucket = "rulssss-pryect-tf-${random_string.bucket_suffix.result}"
