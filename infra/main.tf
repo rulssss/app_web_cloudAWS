@@ -76,6 +76,15 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Flask Web (5000)"
+    from_port   = 5000
+    to_port     = 5000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -120,6 +129,69 @@ resource "aws_instance" "web" {
   instance_type          = "t2.micro"
   subnet_id              = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+    yum install -y python3 python3-pip git
+    
+    # Crear directorio para la app
+    mkdir -p /home/ec2-user/app
+    cd /home/ec2-user/app
+    
+    # Clonar el repositorio
+    git clone https://github.com/rulssss/app_web_cloudAWS.git .
+    
+    # Instalar dependencias (si tienes requirements.txt)
+    if [ -f requirements.txt ]; then
+        pip3 install -r requirements.txt
+    else
+        pip3 install flask psycopg2-binary boto3
+    fi
+    
+    # Crear archivo de variables de entorno
+    cat > .env << EOL
+DB_HOST=${aws_db_instance.db.address}
+DB_NAME=${aws_db_instance.db.db_name}
+DB_USER=${var.db_username}
+DB_PASS=${var.db_password}
+S3_BUCKET=${aws_s3_bucket.bucket.bucket}
+EOL
+    
+    # Cambiar propietario de archivos
+    chown -R ec2-user:ec2-user /home/ec2-user/app
+    
+    # Ejecutar la aplicación como ec2-user
+    sudo -u ec2-user bash << 'EOSU'
+    cd /home/ec2-user/app
+    # Cargar variables de entorno
+    export $(cat .env | xargs)
+    # Ejecutar la app en background
+    nohup python3 app.py > app.log 2>&1 &
+EOSU
+    
+    # Crear servicio systemd para que se ejecute automáticamente
+    cat > /etc/systemd/system/webapp.service << EOL
+[Unit]
+Description=Flask Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/app
+EnvironmentFile=/home/ec2-user/app/.env
+ExecStart=/usr/bin/python3 app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOL
+    
+    # Habilitar y arrancar el servicio
+    systemctl enable webapp
+    systemctl start webapp
+  EOF
   
   tags = {
     Name = "terraform-web-server"
@@ -199,4 +271,9 @@ output "ec2_public_ip" {
 
 output "vpc_id" {
   value = aws_vpc.main.id
+}
+
+output "app_url" {
+  value = "http://${aws_instance.web.public_ip}:5000"
+  description = "URL completa de tu aplicación Flask"
 }
