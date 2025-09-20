@@ -87,7 +87,7 @@ resource "aws_s3_bucket" "bucket" {
   acl    = "private"
 }
 
-# Outputs
+# Outputs 
 
 output "db_host" {
   value = aws_db_instance.db.address
