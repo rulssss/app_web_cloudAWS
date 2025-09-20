@@ -2,6 +2,13 @@ provider "aws" {
   region = "us-east-2"
 }
 
+# Generar sufijo aleatorio para bucket único
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
@@ -65,7 +72,7 @@ resource "aws_route_table_association" "main" {
 }
 
 resource "aws_security_group" "ec2_sg" {
-  name        = "terraform-ec2-sg"
+  name        = "terraform-ec2-sg-${random_string.bucket_suffix.result}"
   description = "Allow SSH and PostgreSQL from VPC"
   vpc_id      = aws_vpc.main.id
 
@@ -100,7 +107,7 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 resource "aws_security_group" "rds_sg" {
-  name        = "terraform-rds-sg"
+  name        = "terraform-rds-sg-${random_string.bucket_suffix.result}"
   description = "Allow Postgres access from EC2"
   vpc_id      = aws_vpc.main.id
 
@@ -202,7 +209,7 @@ EOL
 
 # Usar AMBAS subnets para RDS (mínimo 2 zonas requerido por AWS)
 resource "aws_db_subnet_group" "db_subnets" {
-  name       = "terraform-db-subnet-group"
+  name       = "terraform-db-subnet-group-${random_string.bucket_suffix.result}"
   subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
   tags = { 
     Name = "terraform-db-subnet-group"
@@ -211,7 +218,7 @@ resource "aws_db_subnet_group" "db_subnets" {
 }
 
 resource "aws_db_instance" "db" {
-  identifier              = "terraform-mydb-rulss"
+  identifier              = "terraform-mydb-rulss-${random_string.bucket_suffix.result}"
   allocated_storage       = 10
   engine                  = "postgres"
   engine_version          = "15"
