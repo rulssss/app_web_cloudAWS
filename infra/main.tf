@@ -6,13 +6,19 @@ resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = "main-vpc" }
+  tags = { 
+    Name = "terraform-vpc-rulss"
+    Project = "terraform-project"
+  }
 }
 
 # Internet Gateway para conectividad
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
-  tags = { Name = "main-igw" }
+  tags = { 
+    Name = "terraform-igw-rulss"
+    Project = "terraform-project"
+  }
 }
 
 resource "aws_subnet" "main" {
@@ -20,7 +26,10 @@ resource "aws_subnet" "main" {
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "us-east-2a"
   map_public_ip_on_launch = true
-  tags = { Name = "main-subnet" }
+  tags = { 
+    Name = "terraform-subnet-main"
+    Project = "terraform-project"
+  }
 }
 
 # Segunda subnet OBLIGATORIA para RDS
@@ -28,7 +37,10 @@ resource "aws_subnet" "secondary" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.2.0/24"
   availability_zone = "us-east-2b"
-  tags = { Name = "secondary-subnet" }
+  tags = { 
+    Name = "terraform-subnet-secondary"
+    Project = "terraform-project"
+  }
 }
 
 # Route Table
@@ -40,7 +52,10 @@ resource "aws_route_table" "main" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = { Name = "main-route-table" }
+  tags = { 
+    Name = "terraform-rt-main"
+    Project = "terraform-project"
+  }
 }
 
 resource "aws_route_table_association" "main" {
@@ -49,7 +64,7 @@ resource "aws_route_table_association" "main" {
 }
 
 resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-sg"
+  name        = "terraform-ec2-sg"
   description = "Allow SSH and PostgreSQL from VPC"
   vpc_id      = aws_vpc.main.id
 
@@ -67,10 +82,15 @@ resource "aws_security_group" "ec2_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "terraform-ec2-sg"
+    Project = "terraform-project"
+  }
 }
 
 resource "aws_security_group" "rds_sg" {
-  name        = "rds-sg"
+  name        = "terraform-rds-sg"
   description = "Allow Postgres access from EC2"
   vpc_id      = aws_vpc.main.id
 
@@ -88,6 +108,11 @@ resource "aws_security_group" "rds_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "terraform-rds-sg"
+    Project = "terraform-project"
+  }
 }
 
 resource "aws_instance" "web" {
@@ -97,19 +122,23 @@ resource "aws_instance" "web" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   
   tags = {
-    Name = "web-server"
+    Name = "terraform-web-server"
+    Project = "terraform-project"
   }
 }
 
 # Usar AMBAS subnets para RDS (mínimo 2 zonas requerido por AWS)
 resource "aws_db_subnet_group" "db_subnets" {
-  name       = "main-db-subnet-group"
+  name       = "terraform-db-subnet-group"
   subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
-  tags       = { Name = "main-db-subnet-group" }
+  tags = { 
+    Name = "terraform-db-subnet-group"
+    Project = "terraform-project"
+  }
 }
 
 resource "aws_db_instance" "db" {
-  identifier              = "mydb-rulss"
+  identifier              = "terraform-mydb-rulss"
   allocated_storage       = 10
   engine                  = "postgres"
   engine_version          = "15"
@@ -119,6 +148,11 @@ resource "aws_db_instance" "db" {
   skip_final_snapshot     = true
   db_subnet_group_name    = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
+
+  tags = {
+    Name = "terraform-postgres-db"
+    Project = "terraform-project"
+  }
 }
 
 # Generar sufijo aleatorio para bucket único
@@ -130,8 +164,12 @@ resource "random_string" "bucket_suffix" {
 
 resource "aws_s3_bucket" "bucket" {
   bucket = "rulssss-pryect-tf-${random_string.bucket_suffix.result}"
-}
 
+  tags = {
+    Name = "terraform-s3-bucket"
+    Project = "terraform-project"
+  }
+}
 
 # Outputs 
 output "db_host" {
@@ -157,4 +195,8 @@ output "s3_bucket" {
 
 output "ec2_public_ip" {
   value = aws_instance.web.public_ip
+}
+
+output "vpc_id" {
+  value = aws_vpc.main.id
 }
