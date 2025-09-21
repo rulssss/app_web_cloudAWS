@@ -266,4 +266,4 @@ output "vpc_id" {
 output "app_url" {
   value = "http://${aws_instance.web.public_ip}:5000"
   description = "URL completa de tu aplicación Flask"
-}
+} 
