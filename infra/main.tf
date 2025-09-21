@@ -206,7 +206,7 @@ resource "aws_db_subnet_group" "db_subnets" {
     Project = "terraform-project"
   }
 }
-
+ 
 resource "aws_db_instance" "db" {
   identifier              = "terraform-mydb-rulss-${random_string.bucket_suffix.result}"
   allocated_storage       = 10
