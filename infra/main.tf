@@ -2,7 +2,6 @@ provider "aws" {
   region = "us-east-2"
 }
 
-# Generar sufijo aleatorio para bucket único
 resource "random_string" "bucket_suffix" {
   length  = 8
   special = false
@@ -19,7 +18,6 @@ resource "aws_vpc" "main" {
   }
 }
 
-# Internet Gateway para conectividad
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = { 
@@ -39,7 +37,6 @@ resource "aws_subnet" "main" {
   }
 }
 
-# Segunda subnet OBLIGATORIA para RDS
 resource "aws_subnet" "secondary" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.2.0/24"
@@ -50,7 +47,6 @@ resource "aws_subnet" "secondary" {
   }
 }
 
-# Route Table
 resource "aws_route_table" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -131,32 +127,32 @@ resource "aws_security_group" "rds_sg" {
 }
 
 resource "aws_instance" "web" {
-  ami                    = "ami-0cfde0ea8edd312d4"
+  ami                    = "ami-024e6efaf93d85776" # Ubuntu 22.04 us-east-2
   instance_type          = "t2.micro"
   subnet_id              = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   
-  user_data = <<-EOF
-    #!/bin/bash
-    apt-get update -y
-    apt-get install -y python3 python3-pip git
+  user_data = <<EOF
+#!/bin/bash
+apt-get update -y
+apt-get install -y python3 python3-pip git
 
-    # Crear directorio para la app
-    mkdir -p /home/ubuntu/app
-    cd /home/ubuntu/app
+# Crear directorio para la app
+mkdir -p /home/ubuntu/app
+cd /home/ubuntu/app
 
-    # Clonar el repositorio
-    git clone https://github.com/rulssss/app_web_cloudAWS.git .
+# Clonar el repositorio
+git clone https://github.com/rulssss/app_web_cloudAWS.git .
 
-    # Instalar dependencias (si tienes requirements.txt)
-    if [ -f requirements.txt ]; then
-        pip3 install -r requirements.txt
-    else
-        pip3 install flask psycopg2-binary boto3
-    fi
+# Instalar dependencias
+if [ -f requirements.txt ]; then
+    pip3 install -r requirements.txt
+else
+    pip3 install flask psycopg2-binary boto3
+fi
 
-    # Crear archivo de variables de entorno
-    cat > .env << EOL
+# Crear archivo de variables de entorno
+cat > .env <<EOL
 DB_HOST=${aws_db_instance.db.address}
 DB_NAME=${aws_db_instance.db.db_name}
 DB_USER=${var.db_username}
@@ -164,18 +160,18 @@ DB_PASS=${var.db_password}
 S3_BUCKET=${aws_s3_bucket.bucket.bucket}
 EOL
 
-    # Cambiar propietario de archivos
-    chown -R ubuntu:ubuntu /home/ubuntu/app
+# Cambiar propietario de archivos
+chown -R ubuntu:ubuntu /home/ubuntu/app
 
-    # Ejecutar la aplicación como ubuntu
-    sudo -u ubuntu bash << 'EOSU'
-    cd /home/ubuntu/app
-    export $(cat .env | xargs)
-    nohup python3 app.py > app.log 2>&1 &
+# Ejecutar la aplicación como usuario ubuntu
+sudo -u ubuntu bash <<'EOSU'
+cd /home/ubuntu/app
+export $(cat .env | xargs)
+nohup python3 app.py > app.log 2>&1 &
 EOSU
 
-    # Crear servicio systemd para que se ejecute automáticamente
-    cat > /etc/systemd/system/webapp.service << EOL
+# Crear servicio systemd para que se ejecute automáticamente
+cat > /etc/systemd/system/webapp.service <<EOL
 [Unit]
 Description=Flask Web Application
 After=network.target
@@ -192,9 +188,9 @@ Restart=always
 WantedBy=multi-user.target
 EOL
 
-    systemctl enable webapp
-    systemctl start webapp
-  EOF
+systemctl enable webapp
+systemctl start webapp
+EOF
 
   tags = {
     Name = "terraform-web-server"
@@ -202,7 +198,6 @@ EOL
   }
 }
 
-# Usar AMBAS subnets para RDS (mínimo 2 zonas requerido por AWS)
 resource "aws_db_subnet_group" "db_subnets" {
   name       = "terraform-db-subnet-group-${random_string.bucket_suffix.result}"
   subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
@@ -239,7 +234,6 @@ resource "aws_s3_bucket" "bucket" {
   }
 }
 
-# Outputs 
 output "db_host" {
   value = aws_db_instance.db.address
 }
